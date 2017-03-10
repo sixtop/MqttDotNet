@@ -1,3 +1,7 @@
+This is a repo for making MqttDotNet to play nice with an Unity Build!
+
+---
+
 This is the README file for the source archive of MqttDotNet, a .net
 implementation of the client half of the MQTT messaging protocol.
 
