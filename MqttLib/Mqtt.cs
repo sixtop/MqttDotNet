@@ -9,6 +9,7 @@ using System.Threading;
 using System.Diagnostics;
 using MqttLib.Logger;
 using MqttLib.MatchTree;
+using UnityEngine;
 
 namespace MqttLib
 {
@@ -29,6 +30,7 @@ namespace MqttLib
         private ushort _keepAlive = 30;
         private ushort messageID = 1;
         private Timer keepAliveTimer = null;
+        private MonoBehaviour _coroutineOwner = null;
 
         #endregion
 
@@ -46,7 +48,7 @@ namespace MqttLib
             set { qosManager.ResendInterval = value; }
         }
 
-        public Mqtt(string connString, string clientID, string username, string password, IPersistence store)
+        public Mqtt(string connString, string clientID, string username, string password, IPersistence store, MonoBehaviour coroutineOwner=null)
         {
             _store = store;
             qosManager = new QoSManager(_store);
@@ -55,6 +57,7 @@ namespace MqttLib
             _clientID = clientID;
             _username = username;
             _password = password;
+            _coroutineOwner = coroutineOwner;
         }
 
         void tmrCallback(object args)
@@ -161,7 +164,7 @@ namespace MqttLib
         {
             try
             {
-                manager.Connect();
+                manager.Connect(_coroutineOwner);
                 manager.SendMessage(conmsg);
                 manager.WaitForResponse();
                 TimerCallback callback = new TimerCallback(tmrCallback);
@@ -312,8 +315,14 @@ namespace MqttLib
                 }
                 catch (Exception ex)
                 {
-                    MqttLib.Logger.Log.Write(LogLevel.ERROR, "MqttLib: Uncaught exception from user delegate: " + ex.ToString());
+                    MqttLib.Logger.Log.Write(LogLevel.ERROR, "MqttLib: Uncaught PublishArrived exception from user delegate: " + ex.ToString());
+                    UnityEngine.Debug.LogError("MqttLib: Uncaught exception from user delegate: " + ex.ToString());
                 }
+            }
+            else
+            {
+				MqttLib.Logger.Log.Write(LogLevel.ERROR, "OnPublishArrived: delegate is null!");
+                UnityEngine.Debug.LogWarning("OnPublishArrived: delegate is null!");
             }
 
             if (topicTree != null)
@@ -329,6 +338,7 @@ namespace MqttLib
                     catch (Exception ex)
                     {
                         MqttLib.Logger.Log.Write(LogLevel.ERROR, "MqttLib: Uncaught exception from user delegate: " + ex.ToString());
+                        UnityEngine.Debug.LogError("MqttLib: Uncaught topic tree exception from user delegate: " + ex.ToString());
                     }
                 }
             }

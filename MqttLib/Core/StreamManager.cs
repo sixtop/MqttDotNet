@@ -4,6 +4,7 @@ using System.Text;
 using System.IO;
 using MqttLib.Core.Messages;
 using MqttLib.Logger;
+using UnityEngine;
 
 namespace MqttLib.Core
 {
@@ -34,12 +35,12 @@ namespace MqttLib.Core
             callback = new AsyncCallback(listen);
         }
 
-        public void Connect()
+        public void Connect(MonoBehaviour coroutineOwner = null)
         {
             _channel = StreamFactory.CreateStream(_connString);
             readOp = _channel.BeginRead(headerBuffer, 0, 1, callback, null);
             // Give the qosManager a handle to the streams
-            qosManager.SetStreamManager(this);
+            qosManager.SetStreamManager(this, coroutineOwner);
             _connected = true;
         }
 

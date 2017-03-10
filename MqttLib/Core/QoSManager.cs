@@ -5,6 +5,7 @@ using System.Threading;
 using MqttLib.Core.Messages;
 using MqttLib;
 using MqttLib.Logger;
+using UnityEngine;
 
 namespace MqttLib.Core
 {
@@ -99,6 +100,8 @@ namespace MqttLib.Core
           {
             // we may have just lost the connection
             Log.Write(LogLevel.ERROR, e.ToString());
+            Debug.LogError("ProcessReceivedMessage Exception :" + e.ToString());
+            Debug.LogException(e);
             // important messages (>QoS0) will be resent by broker
             // we should just ignore the message with no further processing.
           }
@@ -129,12 +132,19 @@ namespace MqttLib.Core
         }
 
 
-        public void SetStreamManager(StreamManager strMan)
+        public void SetStreamManager(StreamManager strMan, MonoBehaviour coroutineOwner=null)
         {
             _strManager = strMan;
             _running = true;
-            Thread thr = new Thread(new ThreadStart(MessageDaemon));
-            thr.Start();
+            if (coroutineOwner != null)
+            {
+                coroutineOwner.StartCoroutine(MessageUnityDaemon());
+            }
+            else
+            {
+                Thread thr = new Thread(new ThreadStart(MessageDaemon));
+                thr.Start();
+            }
         }
 
         private void OnMessageReceived(MqttMessage mess)
@@ -182,6 +192,8 @@ namespace MqttLib.Core
                               _strManager.SendMessage(mess);
                             }
                             catch (Exception e) {
+							  Debug.LogError("Failed to re-send messages :" + e.Message);
+							  Debug.LogException(e);
                               Log.Write(LogLevel.ERROR, e.ToString());
                               // If we fail for some reason, we will try again another time automatically
                             }
@@ -189,6 +201,43 @@ namespace MqttLib.Core
                     }
                 }
                 Thread.Sleep(2000);
+            }
+        }
+
+        //Use a coroutine instead of thread so Unity can play nice
+        private IEnumerator MessageUnityDaemon()
+        {
+            // NOTE: This function should be called in it's own thread.
+            while (_running)
+            {
+                // Check if we should re-send some messages
+                lock (_messages)
+                {
+                    DateTime now = DateTime.Now;
+
+                    foreach (MqttMessage mess in _messages.Values)
+                    {
+                        TimeSpan ts = now - new DateTime(mess.Timestamp);
+                        if (ts.TotalMilliseconds >= _resendInterval)
+                        {
+                            mess.Timestamp = now.Ticks;
+                            mess.Duplicate = true;
+                            try
+                            {
+                                Log.Write(LogLevel.DEBUG, "Re-Sending - " + mess.MessageID);
+                                _strManager.SendMessage(mess);
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogError("Failed to re-send messages :" + e.Message);
+                                Debug.LogException(e);
+                                Log.Write(LogLevel.ERROR, e.ToString());
+                                // If we fail for some reason, we will try again another time automatically
+                            }
+                        }
+                    }
+                }
+                yield return new WaitForSeconds(2);
             }
         }
     }
